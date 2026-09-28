@@ -16,27 +16,35 @@ export default function App() {
   const [letterIndex, setLetterIndex] = useState<number | null>(null)
   const [opened, setOpened] = useState(0)
   const [unlocking, setUnlocking] = useState(false)
+  const [travelToken, setTravelToken] = useState(0)
+  const [traveling, setTraveling] = useState(false)
   const handleReady = useCallback(() => setReady(true), [])
   const openMailbox = useCallback(() => {
     if (!letters) {
       setUnlocking(true)
       return
     }
-    const next = opened % letters.length
-    setLetterIndex(next)
-    setOpened((value) => Math.min(value + 1, letters.length))
+    setTraveling(true)
+    setTravelToken((value) => value + 1)
   }, [letters, opened])
   const handleUnlocked = useCallback((unlocked: Letter[]) => {
     setLetters(unlocked)
-    setOpened(1)
-    setLetterIndex(0)
     setUnlocking(false)
+    setTraveling(true)
+    setTravelToken((value) => value + 1)
   }, [])
+  const handleArrival = useCallback(() => {
+    if (!letters) return
+    const next = opened % letters.length
+    setLetterIndex(next)
+    setOpened((value) => Math.min(value + 1, letters.length))
+    setTraveling(false)
+  }, [letters, opened])
 
   return (
     <main className="world-shell">
       <Sky />
-      <WorldCanvas onReady={handleReady} onMailbox={openMailbox} />
+      <WorldCanvas onReady={handleReady} onMailbox={openMailbox} travelToken={travelToken} onArrival={handleArrival} />
 
       <header className="topbar">
         <a className="brand" href="#top" aria-label="回到小宇宙">
@@ -55,7 +63,7 @@ export default function App() {
         <span>这颗会转动的小星球，收藏了为你亮起的家、花园与三封信。</span>
       </section>
 
-      <button className="mailbox-trigger" onClick={openMailbox} aria-label="打开下一封信">
+      <button className="mailbox-trigger" onClick={openMailbox} disabled={traveling} aria-label="打开下一封信">
         <span className="mailbox-icon"><Mail size={21} /></span>
         <span><small>{opened < LETTER_COUNT ? '花园信箱' : '重新阅读'}</small><b>{opened < LETTER_COUNT ? `打开第 ${opened + 1} 封信` : '从第一封开始'}</b></span>
         <ChevronRight size={18} />
@@ -90,10 +98,14 @@ function Sky() {
   </div>
 }
 
-function WorldCanvas({ onReady, onMailbox }: { onReady: () => void; onMailbox: () => void }) {
+function WorldCanvas({ onReady, onMailbox, travelToken, onArrival }: { onReady: () => void; onMailbox: () => void; travelToken: number; onArrival: () => void }) {
   const mountRef = useRef<HTMLDivElement>(null)
   const mailboxHandler = useRef(onMailbox)
   mailboxHandler.current = onMailbox
+  const arrivalHandler = useRef(onArrival)
+  arrivalHandler.current = onArrival
+  const travelTokenRef = useRef(travelToken)
+  travelTokenRef.current = travelToken
 
   useEffect(() => {
     const mount = mountRef.current
@@ -203,7 +215,7 @@ function WorldCanvas({ onReady, onMailbox }: { onReady: () => void; onMailbox: (
     })
 
     const gardenDecor = makeGardenDecor()
-    gardenDecor.position.set(0, -0.62, 1.15)
+    gardenDecor.position.set(0, -0.08, 2.08)
     world.add(gardenDecor)
     ;[[-1.55, 1.1, -1.65], [1.05, 1.55, -1.75], [1.65, 0.92, -1.4]].forEach(([x, y, z]) => {
       const bird = makeBird()
@@ -231,6 +243,12 @@ function WorldCanvas({ onReady, onMailbox }: { onReady: () => void; onMailbox: (
     world.add(cottageRight)
 
     const gltfLoader = new GLTFLoader()
+    let character: THREE.Group | null = null
+    let characterBaseScale = 1
+    let lastTravelToken = 0
+    let travelStart = -1
+    let travelFrom = new THREE.Vector3()
+    const travelTo = new THREE.Vector3(1.28, 0.24, 1.56)
     gltfLoader.load(MODEL_URL, (gltf) => {
       const model = gltf.scene
       const box = new THREE.Box3().setFromObject(model)
@@ -263,11 +281,12 @@ function WorldCanvas({ onReady, onMailbox }: { onReady: () => void; onMailbox: (
     metallic.flipY = false
     const characterMaterial = new THREE.MeshStandardMaterial({ map: diffuse, normalMap: normal, roughnessMap: roughness, metalnessMap: metallic, roughness: 0.82, metalness: 0.05 })
     gltfLoader.load(CHARACTER_URL, (gltf) => {
-      const character = gltf.scene
+      character = gltf.scene
       const box = new THREE.Box3().setFromObject(character)
       const size = box.getSize(new THREE.Vector3())
       const center = box.getCenter(new THREE.Vector3())
       const scale = 0.9 / size.y
+      characterBaseScale = scale
       character.scale.setScalar(scale)
       character.position.set(-0.9 - center.x * scale, 0.42 - box.min.y * scale, 1.28 - center.z * scale)
       character.rotation.y = 0.16
@@ -299,6 +318,24 @@ function WorldCanvas({ onReady, onMailbox }: { onReady: () => void; onMailbox: (
     let frame = 0
     const animate = () => {
       const time = (performance.now() - startedAt) / 1000
+      if (character && travelTokenRef.current > lastTravelToken) {
+        lastTravelToken = travelTokenRef.current
+        travelFrom = character.position.clone()
+        travelStart = performance.now()
+      }
+      if (character && travelStart >= 0) {
+        const progress = Math.min((performance.now() - travelStart) / 2800, 1)
+        const eased = progress * progress * (3 - 2 * progress)
+        character.position.lerpVectors(travelFrom, travelTo, eased)
+        character.position.y += Math.sin(progress * Math.PI * 7) * 0.11 * (1 - progress * 0.35)
+        character.rotation.y = Math.atan2(travelTo.x - travelFrom.x, travelTo.z - travelFrom.z)
+        character.scale.set(characterBaseScale, characterBaseScale * (1 + Math.sin(progress * Math.PI * 7) * 0.045), characterBaseScale)
+        if (progress >= 1) {
+          travelStart = -1
+          character.position.copy(travelTo)
+          arrivalHandler.current()
+        }
+      }
       flowerHeads.forEach((flower, index) => {
         flower.rotation.z = Math.sin(time * 1.6 + index * 0.7) * 0.08
         const petals = flower.userData.petals as THREE.Group | undefined

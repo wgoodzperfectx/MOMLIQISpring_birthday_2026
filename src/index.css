@@ -44,6 +44,7 @@ button { color: inherit; }
 
 .mailbox-trigger { position: absolute; z-index: 5; right: clamp(24px, 6vw, 88px); bottom: 78px; min-width: 232px; display: grid; grid-template-columns: 42px 1fr 20px; gap: 12px; align-items: center; padding: 10px 13px 10px 10px; border: 1px solid rgba(255,255,255,.72); border-radius: 4px; background: rgba(255,250,238,.7); box-shadow: 0 16px 40px rgba(78,55,36,.14); backdrop-filter: blur(16px); cursor: pointer; text-align: left; transition: transform .25s ease, background .25s ease; }
 .mailbox-trigger:hover { transform: translateY(-3px); background: rgba(255,250,238,.9); }
+.mailbox-trigger:disabled { opacity: .58; cursor: wait; transform: none; }
 .mailbox-icon { width: 42px; height: 42px; display: grid; place-items: center; color: white; background: #b74843; }
 .mailbox-trigger small, .mailbox-trigger b { display: block; }
 .mailbox-trigger small { margin-bottom: 3px; font-size: 9px; font-weight: 700; letter-spacing: .16em; color: #a55448; }
