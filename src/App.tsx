@@ -164,6 +164,7 @@ function WorldCanvas({ onReady, onMailbox }: { onReady: () => void; onMailbox: (
 
     const flowerHeads: THREE.Group[] = []
     const floatingClouds: THREE.Group[] = []
+    const floatingBirds: THREE.Group[] = []
     const flowerColors = [0xff8fb6, 0xffd66b, 0xffffff, 0xa88ae8, 0xf16f7e]
     for (let i = 0; i < 46; i += 1) {
       const a = (i / 46) * Math.PI * 2 + Math.sin(i * 2.7) * 0.24
@@ -199,6 +200,29 @@ function WorldCanvas({ onReady, onMailbox }: { onReady: () => void; onMailbox: (
       cloud.scale.setScalar(scale)
       world.add(cloud)
       floatingClouds.push(cloud)
+    })
+
+    // A small ocean-and-books vignette fills the lower hemisphere without adding another asset.
+    const ocean = new THREE.Mesh(
+      new THREE.SphereGeometry(2.2, 64, 32, 0, Math.PI * 2, Math.PI * 0.5, Math.PI * 0.32),
+      new THREE.MeshStandardMaterial({ color: 0x2d9bb0, roughness: 0.34, metalness: 0.08, transparent: true, opacity: 0.92 })
+    )
+    ocean.position.set(0, -1.2, 0)
+    world.add(ocean)
+    const bookHill = makeBookHill()
+    bookHill.position.set(0.05, -0.02, -1.25)
+    bookHill.rotation.y = -0.22
+    world.add(bookHill)
+    const boat = makeBoat()
+    boat.position.set(-1.25, -0.02, -1.55)
+    boat.rotation.y = 0.28
+    world.add(boat)
+    ;[[-1.55, 1.1, -1.65], [1.05, 1.55, -1.75], [1.65, 0.92, -1.4]].forEach(([x, y, z]) => {
+      const bird = makeBird()
+      bird.position.set(x, y, z)
+      bird.scale.setScalar(0.7)
+      world.add(bird)
+      floatingBirds.push(bird)
     })
 
     const mailbox = makeMailbox()
@@ -296,6 +320,10 @@ function WorldCanvas({ onReady, onMailbox }: { onReady: () => void; onMailbox: (
         cloud.position.y += Math.sin(time * 0.7 + index * 1.8) * 0.0007
         cloud.rotation.y = Math.sin(time * 0.22 + index) * 0.12
       })
+      floatingBirds.forEach((bird, index) => {
+        bird.position.y += Math.sin(time * 1.2 + index) * 0.0008
+        bird.rotation.z = Math.sin(time * 1.4 + index) * 0.05
+      })
       mailbox.rotation.z = Math.sin(time * 2.2) * 0.018
       controls.update()
       renderer.render(scene, camera)
@@ -362,6 +390,49 @@ function makeCloud() {
     cloud.add(puff)
   })
   return cloud
+}
+
+function makeBookHill() {
+  const hill = new THREE.Group()
+  const colors = [0xd85f5f, 0xf0b45c, 0x5794c5, 0x7cbd83, 0xa87bb7]
+  for (let i = 0; i < 8; i += 1) {
+    const book = new THREE.Mesh(
+      new THREE.BoxGeometry(0.72 - i * 0.035, 0.12, 0.5 - i * 0.02),
+      new THREE.MeshStandardMaterial({ color: colors[i % colors.length], roughness: 0.76 })
+    )
+    book.position.set(Math.sin(i * 1.7) * 0.08, i * 0.105, Math.cos(i * 1.2) * 0.06)
+    book.rotation.y = (i % 2 ? -1 : 1) * (0.08 + i * 0.035)
+    hill.add(book)
+  }
+  return hill
+}
+
+function makeBoat() {
+  const boat = new THREE.Group()
+  const hull = new THREE.Mesh(new THREE.SphereGeometry(0.38, 16, 8), new THREE.MeshStandardMaterial({ color: 0x8a4d35, roughness: 0.72 }))
+  hull.scale.set(1.45, 0.34, 0.62)
+  boat.add(hull)
+  const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.026, 0.62, 8), new THREE.MeshStandardMaterial({ color: 0x6f4b35 }))
+  mast.position.y = 0.34
+  boat.add(mast)
+  const sail = new THREE.Mesh(new THREE.PlaneGeometry(0.38, 0.42), new THREE.MeshStandardMaterial({ color: 0xfff3d6, side: THREE.DoubleSide, roughness: 0.9 }))
+  sail.position.set(0.12, 0.42, 0)
+  sail.rotation.y = Math.PI / 2
+  boat.add(sail)
+  return boat
+}
+
+function makeBird() {
+  const bird = new THREE.Group()
+  const material = new THREE.MeshBasicMaterial({ color: 0x304b59, side: THREE.DoubleSide })
+  const left = new THREE.Mesh(new THREE.PlaneGeometry(0.22, 0.07), material)
+  const right = left.clone()
+  left.position.x = -0.1
+  right.position.x = 0.1
+  left.rotation.z = 0.28
+  right.rotation.z = -0.28
+  bird.add(left, right)
+  return bird
 }
 
 function makeMailbox() {
