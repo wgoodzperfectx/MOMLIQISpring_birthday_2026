@@ -215,7 +215,8 @@ function WorldCanvas({ onReady, onMailbox, travelToken, onArrival }: { onReady: 
     })
 
     const gardenDecor = makeGardenDecor()
-    gardenDecor.position.set(0, -0.08, 2.08)
+    // Keep the lower garden on the front-facing hemisphere, directly below the houses.
+    gardenDecor.position.set(0, -0.78, 2.02)
     world.add(gardenDecor)
     ;[[-1.55, 1.1, -1.65], [1.05, 1.55, -1.75], [1.65, 0.92, -1.4]].forEach(([x, y, z]) => {
       const bird = makeBird()
@@ -248,7 +249,7 @@ function WorldCanvas({ onReady, onMailbox, travelToken, onArrival }: { onReady: 
     let lastTravelToken = 0
     let travelStart = -1
     let travelFrom = new THREE.Vector3()
-    const travelTo = new THREE.Vector3(1.28, 0.24, 1.56)
+    const travelTo = new THREE.Vector3(1.28, -0.1, 1.9)
     gltfLoader.load(MODEL_URL, (gltf) => {
       const model = gltf.scene
       const box = new THREE.Box3().setFromObject(model)
@@ -322,16 +323,22 @@ function WorldCanvas({ onReady, onMailbox, travelToken, onArrival }: { onReady: 
         lastTravelToken = travelTokenRef.current
         travelFrom = character.position.clone()
         travelStart = performance.now()
+        controls.autoRotate = false
       }
       if (character && travelStart >= 0) {
-        const progress = Math.min((performance.now() - travelStart) / 2800, 1)
-        const eased = progress * progress * (3 - 2 * progress)
-        character.position.lerpVectors(travelFrom, travelTo, eased)
-        character.position.y += Math.sin(progress * Math.PI * 7) * 0.11 * (1 - progress * 0.35)
+        const progress = Math.min((performance.now() - travelStart) / 3600, 1)
+        const segment = Math.min(Math.floor(progress * 3), 2)
+        const segmentProgress = progress * 3 - segment
+        const eased = segmentProgress * segmentProgress * (3 - 2 * segmentProgress)
+        const waypoint = new THREE.Vector3().lerpVectors(travelFrom, travelTo, (segment + 1) / 3)
+        const segmentStart = segment === 0 ? travelFrom : new THREE.Vector3().lerpVectors(travelFrom, travelTo, segment / 3)
+        character.position.lerpVectors(segmentStart, waypoint, eased)
+        character.position.y += Math.sin(segmentProgress * Math.PI) * 0.14
         character.rotation.y = Math.atan2(travelTo.x - travelFrom.x, travelTo.z - travelFrom.z)
         character.scale.set(characterBaseScale, characterBaseScale * (1 + Math.sin(progress * Math.PI * 7) * 0.045), characterBaseScale)
         if (progress >= 1) {
           travelStart = -1
+          controls.autoRotate = true
           character.position.copy(travelTo)
           arrivalHandler.current()
         }
